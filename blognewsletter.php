@@ -9,7 +9,7 @@ Author URI: http://curlybracket.net
 License: GPL2
 */
 /*
-    Copyright 2013  Ulrike Uhlig  (email : rike@curlybracket.net)
+    Copyright 2013  Ulrike Uhlig  (email : u@curlybracket.net)
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License, version 2, as
