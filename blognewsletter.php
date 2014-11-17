@@ -3,7 +3,7 @@
 Plugin Name: BlogNewsletter
 Plugin URI: http://curlybracket.net/2013/12/02/blog-newsletter/
 Description: Automatically send email on post publication to a specified list of email addresses
-Version: 1.0
+Version: 1.1
 Author: Ulrike Uhlig
 Author URI: http://curlybracket.net
 License: GPL2
@@ -28,6 +28,7 @@ License: GPL2
 <?php
 
 /* checks status of post_ID and if in the future, schedules the sending event */
+// note that this does not work for custom post types.
 function mail_blog_post( $post_ID ) {
 	$post = get_post($post_ID);
 	if( ( $post->post_status == 'publish' ) && ( $post->original_post_status != 'publish' ) ) {
@@ -46,12 +47,14 @@ function mail_blog_post( $post_ID ) {
  * sends the actual email
  */
 function send_blognewsletter( $post_ID ) {
+	$post = get_post($post_ID);
 	// get options
 	$blog_newsletter_options = get_option('blog_newsletter_option_name');
 	$from = $blog_newsletter_options['from'];
 	if(!is_email($from)) $from = get_option( 'admin_email' ); // fall back to admin email if from !isset
 	$subject = $blog_newsletter_options['subject'];
 	$recipients = $blog_newsletter_options['recipients'];
+	$logoURL = $blog_newsletter_options['logo'];
 	$extracontents = $blog_newsletter_options['extracontents'];
 
 	// send mail
@@ -64,7 +67,24 @@ function send_blognewsletter( $post_ID ) {
 		$postlink = get_permalink($post_ID);
 		$headers[] = "From: $blogname <$from>";
 		$headers[] = "Bcc: $recipients";
-		$message = "$extracontents <br /><a href=\"$postlink\">$posttitle</a>.<br />--<br />$blogurl";
+
+		// get thumbnail
+		if(has_post_thumbnail($post_ID)) {
+			$postthumbnail = get_the_post_thumbnail( $post_ID, 'thumbnail' );
+		} else {
+            $first_img = the_first_image($post_ID);
+            if($first_img) {
+				$postthumbnail = $first_img['thumbnail'];
+			}
+		}
+
+		// get excerpt
+		//$postexcerpt = apply_filters('the_excerpt', get_post_field('post_excerpt', $post_ID));
+		$postexcerpt = apply_filters('get_the_excerpt', $post->post_excerpt);
+
+		if(!empty($logoURL)) $message = "<a href=\"$blogurl\"><img src=\"$logoURL\" alt=\"\" /></a><br />";
+		$message .= "$extracontents<br /><br /><span style=\"float:left; margin-right: 1em;\">$postthumbnail</span><h1>$posttitle</h1>$postexcerpt<br/><br/><a href=\"$postlink\">".__('Read more')."</a><br style=\"clear: both;\" />--<br />$blogurl";
+
 		add_filter('wp_mail_content_type',create_function('', 'return "text/html";'));
 		wp_mail( $to, "[$blogname] $subject $posttitle", $message, $headers );
 		return $post_ID;
@@ -72,6 +92,24 @@ function send_blognewsletter( $post_ID ) {
 }
 add_action( 'publish_post', 'mail_blog_post');
 add_action( 'schedule_blognewsletter','send_blognewsletter', 10, 3 );
+
+function the_first_image($post_ID) {
+    if($images = get_children(array(
+        'post_parent'    => $post_ID,
+        'post_type'      => 'attachment',
+        'numberposts'    => -1,
+        'post_status'    => null,
+        'post_mime_type' => 'image',
+    ))) {
+        foreach($images as $image) {
+            $image_id = $image->ID;
+            $order = $image->menu_order;
+            $attimg_thumb  = wp_get_attachment_image($image->ID, 'thumbnail');
+            $first_img = array ('thumb' => $attimg_thumb );
+        }
+        return($first_img);
+    }
+}
 
 class BlogNewsletterSettingsPage {
     /**
@@ -159,6 +197,13 @@ class BlogNewsletterSettingsPage {
             'blog_newsletter_section_general'
         );
         add_settings_field(
+            'subject',
+            'Email subject (ie. "New post:")',
+            array( $this, 'subject_callback' ),
+            'blog-newsletter-admin',
+            'blog_newsletter_section_general'
+        );
+        add_settings_field(
             'extracontents',
             'Additional contents for the email message (appears before the post link)',
             array( $this, 'extracontents_callback' ),
@@ -166,9 +211,9 @@ class BlogNewsletterSettingsPage {
             'blog_newsletter_section_general'
         );
         add_settings_field(
-            'subject',
-            'Email subject (ie. "New post:")',
-            array( $this, 'subject_callback' ),
+            'logo',
+            'Logo (Provide URL with image at correct size)',
+            array( $this, 'logo_callback' ),
             'blog-newsletter-admin',
             'blog_newsletter_section_general'
         );
@@ -184,6 +229,9 @@ class BlogNewsletterSettingsPage {
 
         if( !empty( $input['from'] ) )
             $input['from'] = sanitize_email( $input['from'] );
+
+        if( !empty( $input['logo'] ) )
+            $input['logo'] = esc_url( $input['logo'] );
 
         if( !empty( $input['recipients'] ) ) {
             $input['recipients'] = sanitize_text_field(str_replace( ';', ',', $input['recipients'] ));
@@ -240,6 +288,15 @@ class BlogNewsletterSettingsPage {
 			esc_attr( $this->options['subject'])
         );
     }
+
+    public function logo_callback()
+    {
+        printf(
+			'<input type="text" id="logo" name="blog_newsletter_option_name[logo]" class="regular-text ltr" value="%s" />',
+			esc_attr( $this->options['logo'])
+        );
+    }
+
     public function extracontents_callback()
     {
         printf(
