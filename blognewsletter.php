@@ -69,20 +69,15 @@ function send_blognewsletter( $post_ID ) {
 		$headers[] = "Bcc: $recipients";
 
 		// get thumbnail
-		if(has_post_thumbnail($post_ID)) {
+		if(has_post_thumbnail($post_ID))
 			$postthumbnail = get_the_post_thumbnail( $post_ID, 'thumbnail' );
-		} else {
-            $first_img = the_first_image($post_ID);
-            if($first_img) {
-				$postthumbnail = $first_img['thumbnail'];
-			}
-		}
 
 		// get excerpt
-		//$postexcerpt = apply_filters('the_excerpt', get_post_field('post_excerpt', $post_ID));
 		$postexcerpt = apply_filters('get_the_excerpt', $post->post_excerpt);
 
-		if(!empty($logoURL)) $message = "<a href=\"$blogurl\"><img src=\"$logoURL\" alt=\"\" /></a><br />";
+		if(!empty($logoURL))
+			$message = "<a href=\"$blogurl\"><img src=\"$logoURL\" alt=\"\" /></a><br />";
+
 		$message .= "$extracontents<br /><br /><span style=\"float:left; margin-right: 1em;\">$postthumbnail</span><h1>$posttitle</h1>$postexcerpt<br/><br/><a href=\"$postlink\">".__('Read more')."</a><br style=\"clear: both;\" />--<br />$blogurl";
 
 		add_filter('wp_mail_content_type',create_function('', 'return "text/html";'));
@@ -92,24 +87,6 @@ function send_blognewsletter( $post_ID ) {
 }
 add_action( 'publish_post', 'mail_blog_post');
 add_action( 'schedule_blognewsletter','send_blognewsletter', 10, 3 );
-
-function the_first_image($post_ID) {
-    if($images = get_children(array(
-        'post_parent'    => $post_ID,
-        'post_type'      => 'attachment',
-        'numberposts'    => -1,
-        'post_status'    => null,
-        'post_mime_type' => 'image',
-    ))) {
-        foreach($images as $image) {
-            $image_id = $image->ID;
-            $order = $image->menu_order;
-            $attimg_thumb  = wp_get_attachment_image($image->ID, 'thumbnail');
-            $first_img = array ('thumb' => $attimg_thumb );
-        }
-        return($first_img);
-    }
-}
 
 class BlogNewsletterSettingsPage {
     /**
